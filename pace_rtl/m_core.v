@@ -34,6 +34,7 @@ module m_core (
     output wire [4:0]  ext_wr_addr,
     output wire [63:0] ext_wr_data,
     output reg         mem_req, mem_we,
+    output reg  [7:0]  mem_be,
     output reg  [63:0] mem_addr, mem_wdata,
     input  wire [63:0] mem_rdata,
     input  wire        mem_ready,
@@ -68,6 +69,13 @@ module m_core (
                          (lat_funct3 == 3'b100) ? {56'b0, mem_rdata[7:0]}  :
                          (lat_funct3 == 3'b101) ? {48'b0, mem_rdata[15:0]} :
                          (lat_funct3 == 3'b110) ? {32'b0, mem_rdata[31:0]} : mem_rdata;
+    wire [7:0] st_be = (mq_funct3 == 3'b000) ? 8'h01 :
+                       (mq_funct3 == 3'b001) ? 8'h03 :
+                       (mq_funct3 == 3'b010) ? 8'h0F :
+                                               8'hFF;
+    // debug
+    always @(posedge clk) if (mem_req && !mem_we) $display("[MC-LD] addr=%h f3=%h", mem_addr, lat_funct3);
+    always @(posedge clk) if (mem_req && mem_we) $display("[MC-ST] addr=%h f3=%h be=%h wd=%h", mem_addr, mq_funct3, mem_be, mem_wdata);
     wire [63:0] st_ext = (mq_funct3 == 3'b000) ? {56'b0, mq_rs2[7:0]} :
                          (mq_funct3 == 3'b001) ? {48'b0, mq_rs2[15:0]} :
                          (mq_funct3 == 3'b010) ? {32'b0, mq_rs2[31:0]} : mq_rs2;
@@ -91,7 +99,7 @@ module m_core (
     always @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
             state <= S_IDLE;
-            mem_req <= 0; mem_we <= 0; mem_addr <= 0; mem_wdata <= 0;
+            mem_req <= 0; mem_we <= 0; mem_addr <= 0; mem_wdata <= 0; mem_be <= 8'hFF;
             amo_ext_req <= 0;
             lat_op <= 0; lat_addr <= 0; lat_rs2 <= 0; lat_rd <= 0; lat_funct3 <= 0;
             for (k = 0; k < 32; k = k + 1) regs[k] <= 0;
@@ -114,6 +122,7 @@ module m_core (
                             OP_ST: begin
                                 mem_req <= 1; mem_we <= 1; mem_addr <= mq_addr;
                                 mem_wdata <= st_ext;
+                                mem_be <= st_be;
                                 state <= S_ST;
                             end
                             default: begin

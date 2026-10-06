@@ -24,6 +24,7 @@ module top_pace_mem #(parameter HART_ID = 0) (
     output wire        dram_req, dram_we,
     output wire [63:0] dram_addr,
     output wire [511:0] dram_wdata,
+    output wire [7:0]   dram_be,
     input  wire [511:0] dram_rdata,
     input  wire        dram_ready,
     // MMIO
@@ -110,6 +111,7 @@ module top_pace_mem #(parameter HART_ID = 0) (
     // ===== Bypass: M-mode bare → MC direto pra DRAM =====
     wire mmu_bypass = !(satp_en_w && (priv_mode != 2'b11));
     wire mc_dram_req = mc_req && mmu_bypass;
+    wire [7:0] mc_be;
     wire l1d_req     = mc_req && !mmu_bypass;
     wire [63:0] l1d_rdata;
     wire        l1d_ready;
@@ -123,6 +125,7 @@ module top_pace_mem #(parameter HART_ID = 0) (
     assign dram_we    = mc_dram_req ? mc_we : l2_dram_we;
     assign dram_addr  = mc_dram_req ? mc_addr : l2_dram_addr;
     assign dram_wdata = mc_dram_req ? {448'b0, mc_wdata} : l2_dram_wdata;
+    assign dram_be    = mc_dram_req ? mc_be : 8'hFF;
     assign l2_dram_rdata = dram_rdata;
 
     // ===== Instâncias =====
@@ -183,6 +186,7 @@ module top_pace_mem #(parameter HART_ID = 0) (
         .ext_wr_data(mc_ext_wr_data),
         .mem_req(mc_req), .mem_we(mc_we),
         .mem_addr(mc_addr), .mem_wdata(mc_wdata),
+        .mem_be(mc_be),
         .mem_rdata(mc_rdata), .mem_ready(mc_ready),
         .dbg_rs(5'd0), .dbg_rd()
     );

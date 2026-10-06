@@ -48,6 +48,16 @@ module mem_queue #(parameter DEPTH=8) (
     assign full       = (count == DEPTH[3:0]);
     assign push_ready = ~full;
     assign pop_valid  = (count != 0);
+    // debug counters
+    reg [15:0] dbg_pushes, dbg_pops, dbg_drops;
+    always @(posedge clk or negedge rst_n) begin
+        if (!rst_n) begin dbg_pushes<=0; dbg_pops<=0; dbg_drops<=0; end
+        else begin
+            if (push_en && push_ready) dbg_pushes <= dbg_pushes + 1;
+            if (push_en && !push_ready) dbg_drops <= dbg_drops + 1;
+            if (pop_en && pop_valid) dbg_pops <= dbg_pops + 1;
+        end
+    end
 
     assign pop_op    = op_r   [head];
     assign pop_addr  = addr_r [head];
@@ -60,6 +70,7 @@ module mem_queue #(parameter DEPTH=8) (
         if (!rst_n) begin
             head <= 0; tail <= 0; count <= 0;
         end else begin
+            if (push_en && !push_ready) $display("[MQ-DROP] op=%h addr=%h f3=%h count=%h", push_op, push_addr, push_funct3, count);
             if (push_en && push_ready) begin
                 op_r   [tail] <= push_op;
                 addr_r [tail] <= push_addr;
@@ -67,10 +78,10 @@ module mem_queue #(parameter DEPTH=8) (
                 rd_r   [tail] <= push_rd;
                 f3_r   [tail] <= push_funct3;
                 amof_r [tail] <= push_amo_f5;
-                tail <= tail + 1'b1;
+                tail <= (tail + 1'b1) & (DEPTH[3:0] - 1'b1);
             end
             if (pop_en && pop_valid) begin
-                head <= head + 1'b1;
+                head <= (head + 1'b1) & (DEPTH[3:0] - 1'b1);
             end
             // count
             if (push_en && push_ready && !(pop_en && pop_valid))

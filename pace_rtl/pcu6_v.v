@@ -316,7 +316,7 @@ module pcu6_v #(parameter HART_ID = 0) (
                          is_lr_0 ? 3'd2 :
                          is_sc_0 ? 3'd3 : 3'd4;
     // Stall do PCU se a fila está cheia e a lane 0 é memória
-    wire mq_stall = (is_load_0 || is_store_0 || is_amo_0) && mq_full;
+    wire mq_stall = (is_load_0 || is_store_0 || is_amo_0) && (mq_full || mq_push_en);
 
     localparam VS_IDLE = 0, VS_EXEC = 1;
     localparam VS_LD_REQ = 2, VS_LD_WAIT = 3, VS_LD_MERGE = 4, VS_LD_WB = 5;
@@ -358,6 +358,7 @@ module pcu6_v #(parameter HART_ID = 0) (
             end else if (is_br[0]) begin
                 branch_pending <= 1;
             end else if (is_load_0 || is_store_0 || is_amo_0) begin
+                $display("[PCU] ST pc=%h addr=%h f3=%h", pc, rs1_val[0*64 +: 64] + d_imm[0*64 +: 64], d_funct3[0*3 +: 3]);
                 // LOAD/STORE/AMO: empurra pra fila
                 mq_push_en    <= 1;
                 mq_push_op    <= is_load_0  ? 3'd0 :
