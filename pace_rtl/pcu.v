@@ -95,6 +95,9 @@ module pcu #(parameter RESET_PC = 64'd0) (
     wire is_jal    = (d_opcode == 7'b1101111);
     wire is_jalr   = (d_opcode == 7'b1100111);
     wire is_ctrl   = is_branch || is_jal || is_jalr;
+    wire writes_rd_link = (is_jal || is_jalr) && (d_rd != 5'd0);
+    wire writes_rd      = writes_rd_alu || writes_rd_link;
+    wire [63:0] wr_data = writes_rd_link ? (pc + 64'd4) : alu_out;
 
     reg br_cond;
     always @(*) case (d_funct3)
@@ -211,7 +214,7 @@ module pcu #(parameter RESET_PC = 64'd0) (
             if (ext_wr_en && ext_wr_addr != 0) pcu_regs[ext_wr_addr] <= ext_wr_data;
         end else begin
             pc <= pc + 4;
-            if (writes_rd_alu) pcu_regs[d_rd] <= alu_out;
+            if (writes_rd) pcu_regs[d_rd] <= wr_data;
             if (d_is_csr && d_rd != 5'd0) pcu_regs[d_rd] <= csr_rdata;
             if (ext_wr_en && ext_wr_addr != 0) pcu_regs[ext_wr_addr] <= ext_wr_data;
             if (is_load_instr) wait_load <= 1;
@@ -220,10 +223,10 @@ module pcu #(parameter RESET_PC = 64'd0) (
 
     // === Shadow write ===
     // CSR reads also write to shadow RF (result goes to rd)
-    assign shadow_we   = (writes_rd_alu && !is_ctrl && pcu_valid) ||
+    assign shadow_we   = (writes_rd && !is_ctrl && pcu_valid) ||
                          (d_is_csr && d_rd != 5'd0 && pcu_valid);
     assign shadow_rd   = d_rd;
-    assign shadow_data = d_is_csr ? csr_rdata : alu_out;
+    assign shadow_data = writes_rd_link ? (pc + 64'd4) : (d_is_csr ? csr_rdata : alu_out);
     assign shadow_exc  = exc_valid && pcu_valid;
     assign dbg_result  = alu_out;
 endmodule

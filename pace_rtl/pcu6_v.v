@@ -262,6 +262,7 @@ module pcu6_v #(parameter HART_ID = 0) (
 
     wire is_jal_0  = (d_opcode[0*7 +: 7] == 7'b1101111);
     wire is_jalr_0 = (d_opcode[0*7 +: 7] == 7'b1100111);
+    wire is_link_0 = (is_jal_0 || is_jalr_0) && (d_rd[0*5 +: 5] != 5'd0);
     wire [63:0] jalr_target = (rs1_val[0*64 +: 64] + d_imm[0*64 +: 64]) & ~64'd1;
     wire [63:0] ctrl_target = is_jalr_0 ? jalr_target : (pc + d_imm[0*64 +: 64]);
     wire ctrl_taken = is_jal_0 ? 1'b1 : (is_jalr_0 ? 1'b1 : br_cond);
@@ -500,10 +501,11 @@ module pcu6_v #(parameter HART_ID = 0) (
     wire vec_to_shadow = (v_state == VS_EXEC);
     // MC escreve via ext_wr → injeta no Shadow RF (lane 5)
     wire ext_to_shadow = ext_wr_en && (ext_wr_addr != 5'd0);
-    wire lane0_we_override = csr_to_shadow || vec_to_shadow;
+    wire lane0_we_override = csr_to_shadow || vec_to_shadow || is_link_0;
 
     wire [63:0] lane0_data = csr_to_shadow ? csr_rdata :
                              vec_to_shadow ? v_alu_result_0 :
+                         is_link_0     ? (pc + 64'd4) :
                              cluster_result[0*64 +: 64];
     wire [4:0]  lane0_rd   = vec_to_shadow ? v_lat_rd : d_rd[0*5 +: 5];
 
