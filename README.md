@@ -14,6 +14,26 @@ This design targets high IPC on branchy, arithmetic-heavy, and memory-intensive 
 - **Simulator:** Verilator
 - **Target:** RV64 in-order superscalar core
 
+## How PACE Was Developed
+
+PACE's architecture — the scout-based pre-computation model, the
+AO-Core decoupling, the Shadow RF with memory address tagging, and
+the memory subsystem — is my own design. I spent several weeks
+thinking through the microarchitecture before writing any RTL.
+
+The initial RTL was then generated with AI assistance over roughly
+two days, then reviewed, tested, and iterated on. This produced a
+working base with the integration issues documented in the README
+and open issues.
+
+I am currently learning Verilog to fully understand, maintain, and
+improve the implementation myself. Until then, some bugs may remain
+undiscovered and some interface inconsistencies may persist — as is
+normal for a v0.1.0 release.
+
+If you contribute, you are helping not just the project but also
+my growth as an engineer. Thanks for that.
+
 ## Architecture
 
 ### Core Pipeline
