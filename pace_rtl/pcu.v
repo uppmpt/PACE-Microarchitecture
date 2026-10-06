@@ -15,7 +15,7 @@
 //
 // Source location: https://github.com/uppmpt/pace-microarchitecture
 `timescale 1ns/1ps
-module pcu (
+module pcu #(parameter RESET_PC = 64'd0) (
     input  wire        clk, rst_n,
     input  wire        stall, fetch_stall, shdw_wr_ready,
     output wire        pcu_valid,
@@ -189,7 +189,7 @@ module pcu (
     // === PC update ===
     always @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
-            pc <= 0; branch_pending <= 0; wait_load <= 0;
+            pc <= RESET_PC; branch_pending <= 0; wait_load <= 0;
             for (integer k=0; k<32; k=k+1) pcu_regs[k] <= 0;
         end else if (stall || fetch_stall) begin
             if (ext_wr_en && ext_wr_addr != 0) pcu_regs[ext_wr_addr] <= ext_wr_data;
