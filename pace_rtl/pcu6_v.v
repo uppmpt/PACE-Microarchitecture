@@ -347,9 +347,10 @@ module pcu6_v #(parameter HART_ID = 0) (
                 if (ext_wr_en && ext_wr_addr != 5'd0)
                     pcu_regs[ext_wr_addr] <= ext_wr_data;
             end else if (wait_load) begin
-                if (ext_wr_en && ext_wr_addr != 5'd0)
+                if (ext_wr_en && ext_wr_addr != 5'd0) begin
                     pcu_regs[ext_wr_addr] <= ext_wr_data;
-                wait_load <= 0;
+                    wait_load <= 1'b0;
+                end
             end else if (trap_taken_w) begin
                 pc <= trap_pc_w;
                 branch_pending <= 0;
@@ -371,6 +372,7 @@ module pcu6_v #(parameter HART_ID = 0) (
                 mq_push_funct3<= d_funct3[0*3 +: 3];
                 mq_push_amo_f5<= amo_f5_0;
                 pc            <= pc + 4;
+                if (is_load_0) wait_load <= 1'b1;
             end else if (v_state == VS_EXEC) begin
                 v_wd_lane0 <= v_alu_result_0;
                 v_we_lane0 <= 1;
