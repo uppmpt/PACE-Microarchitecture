@@ -502,12 +502,15 @@ module pcu6_v #(parameter HART_ID = 0) (
     wire vec_to_shadow = (v_state == VS_EXEC);
     // MC escreve via ext_wr → injeta no Shadow RF (lane 5)
     wire ext_to_shadow = ext_wr_en && (ext_wr_addr != 5'd0);
-    wire lane0_we_override = csr_to_shadow || vec_to_shadow || is_link_0;
+    wire is_u_type = is_lui_0 || is_auipc_0;
+    wire [63:0] u_imm_val = is_lui_0 ? d_imm[0*64 +: 64] : (pc + d_imm[0*64 +: 64]);
+    wire lane0_we_override = csr_to_shadow || vec_to_shadow || is_link_0 || is_u_type;
 
     wire [63:0] lane0_data = csr_to_shadow ? csr_rdata :
                              vec_to_shadow ? v_alu_result_0 :
                          is_link_0     ? (pc + 64'd4) :
-                             cluster_result[0*64 +: 64];
+                             is_u_type ? u_imm_val :
+                         cluster_result[0*64 +: 64];
     wire [4:0]  lane0_rd   = vec_to_shadow ? v_lat_rd : d_rd[0*5 +: 5];
 
     // Se csr_to_shadow ou vec_to_shadow, lane 0 substitui
