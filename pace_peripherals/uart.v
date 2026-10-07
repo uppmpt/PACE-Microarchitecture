@@ -180,60 +180,86 @@ module uart (
         end
     end
 
-    // ================ RX ================
-    reg [2:0] rx_state;
-    localparam RX_IDLE = 0, RX_START = 1, RX_DATA = 2, RX_PARITY = 3, RX_STOP = 4;
-    reg [3:0] rx_bit_idx;
-    reg [10:0] rx_shift;
-    reg       rx_busy;
+// ================ RX ================
+reg [2:0]  rx_state;
+localparam RX_IDLE_S = 3'd0, RX_HALFBIT = 3'd1, RX_DATA_S = 3'd2,
+           RX_PARITY_S = 3'd3, RX_STOP_S = 3'd4;
+reg [3:0]  rx_bit_idx;
+reg [19:0] rx_bit_cnt;
+reg [10:0] rx_shift;
+reg        rx_busy;
 
-    always @(posedge clk or negedge rst_n) begin
-        if (!rst_n) begin
-            rx_state <= RX_IDLE;
-            rx_bit_idx <= 0;
-            rx_busy <= 0;
-            rx_wr_ptr <= 0;
-        end else if (sample_tick) begin
-            case (rx_state)
-                RX_IDLE: begin
-                    if (!rx) begin
-                        rx_state <= RX_START;
-                        rx_bit_idx <= 0;
-                        rx_busy <= 1;
-                    end
+// Timing in clocks (divisor from DLL/DLM, 16x oversampling):
+wire [19:0] rx_half = {divisor, 3'b000};
+wire [19:0] rx_full = {divisor, 4'b0000};
+
+always @(posedge clk or negedge rst_n) begin
+    if (!rst_n) begin
+        rx_state   <= RX_IDLE_S;
+        rx_bit_idx <= 0;
+        rx_bit_cnt <= 0;
+        rx_busy    <= 0;
+        rx_wr_ptr  <= 0;
+    end else begin
+        case (rx_state)
+            RX_IDLE_S: begin
+                if (!rx) begin
+                    rx_bit_cnt <= rx_half - 1;
+                    rx_state   <= RX_HALFBIT;
+                    rx_busy    <= 1;
                 end
-                RX_START: begin
-                    // Meio do bit de start
+            end
+            RX_HALFBIT: begin
+                if (rx_bit_cnt == 0) begin
                     if (rx == 0) begin
-                        rx_state <= RX_DATA;
                         rx_bit_idx <= 0;
+                        rx_bit_cnt <= rx_full - 1;
+                        rx_state   <= RX_DATA_S;
                     end else begin
-                        rx_state <= RX_IDLE;   // glitch
-                        rx_busy <= 0;
+                        rx_state <= RX_IDLE_S;
+                        rx_busy  <= 0;
                     end
+                end else begin
+                    rx_bit_cnt <= rx_bit_cnt - 1;
                 end
-                RX_DATA: begin
+            end
+            RX_DATA_S: begin
+                if (rx_bit_cnt == 0) begin
                     rx_shift[rx_bit_idx] <= rx;
                     if (rx_bit_idx == tx_data_bits - 1) begin
-                        rx_state <= parity_en ? RX_PARITY : RX_STOP;
+                        rx_bit_cnt <= rx_full - 1;
+                        rx_state   <= parity_en ? RX_PARITY_S : RX_STOP_S;
                     end else begin
                         rx_bit_idx <= rx_bit_idx + 1;
+                        rx_bit_cnt <= rx_full - 1;
                     end
+                end else begin
+                    rx_bit_cnt <= rx_bit_cnt - 1;
                 end
-                RX_PARITY: begin
-                    rx_state <= RX_STOP;
+            end
+            RX_PARITY_S: begin
+                if (rx_bit_cnt == 0) begin
+                    rx_bit_cnt <= rx_full - 1;
+                    rx_state   <= RX_STOP_S;
+                end else begin
+                    rx_bit_cnt <= rx_bit_cnt - 1;
                 end
-                RX_STOP: begin
+            end
+            RX_STOP_S: begin
+                if (rx_bit_cnt == 0) begin
                     if (!rx_fifo_full) begin
                         rx_fifo[rx_wr_ptr] <= rx_shift[7:0];
                         rx_wr_ptr <= rx_wr_ptr + 1;
                     end
-                    rx_state <= RX_IDLE;
-                    rx_busy <= 0;
+                    rx_state <= RX_IDLE_S;
+                    rx_busy  <= 0;
+                end else begin
+                    rx_bit_cnt <= rx_bit_cnt - 1;
                 end
-            endcase
-        end
+            end
+        endcase
     end
+end
 
     // ================ Line Status Register ================
     wire [7:0] lsr = {
@@ -321,7 +347,7 @@ module uart (
             if (tx_state == TX_STOP && sample_tick && tx_bit_idx >= (stop_bits ? 2 : 1))
                 tx_count <= tx_count - 1;
             // RX count
-            if (rx_state == RX_STOP && sample_tick && !rx_fifo_full)
+            if (rx_state == RX_STOP_S && rx_bit_cnt == 0 && !rx_fifo_full)
                 rx_count <= rx_count + 1;
             if (req && !we && off == 8'h00 && !dlab && !rx_fifo_empty)
                 rx_count <= rx_count - 1;
