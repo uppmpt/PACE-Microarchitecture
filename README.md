@@ -193,6 +193,11 @@ Per CERN-OHL-W v2 section 3.3b, any modification to this source must be document
 
 - 2026-10-05 - uppmpt - Initial release (v0.1.0)
 
+## Contributors
+
+- @aaravsinghbisen — top-level module interface documentation (docs/INTERFACES.md)
+- @pragna-tummala — internal module documentation (alu_rv64, opcode matrix)
+
 ## Author
 
 **uppmpt** — github.com/uppmpt
