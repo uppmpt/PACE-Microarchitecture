@@ -851,3 +851,42 @@ The following project-level information is not established by the supplied top-l
 - Address-unit conventions where they are not explicitly stated by the connected module/interface.
 - Whether the current `top_pace.v` / `m_core.v` port mismatch is intentional or stale.
 - The intended build command for each top-level variant.
+
+
+## Internal Core Modules Reference
+
+### 1. 64-Bit Arithmetic Logic Unit (`alu_rv64`)
+
+The `alu_rv64` module functions as the foundational execution unit of the processor core, managing 64-bit integer logic vectors, dynamic arithmetic, shift states, and standard RISC-V M-extension math calculations.
+
+#### Interface Port Definitions
+
+| Signal Name | Direction | Data Type | Bit Width | Description |
+| :--- | :--- | :--- | :--- | :--- |
+| `in0_alu` | **Input** | `wire` | 64-bit (`[63:0]`) | Primary operand vector input A. |
+| `in1_alu` | **Input** | `wire` | 64-bit (`[63:0]`) | Secondary operand vector input B. |
+| `opcd_alu` | **Input** | `wire` | 5-bit (`[4:0]`) | Arithmetic operation selection control code opcode. |
+| `out_alu` | **Output** | `reg` | 64-bit (`[63:0]`) | Unified calculated result output vector. |
+
+#### Opcode Selection Configuration Matrix
+
+The module decodes the 5-bit `opcd_alu` command vector matching these parameters:
+
+* `5'd0` (**OP_ADD**): Computes the direct binary sum of `in0_alu` and `in1_alu`.
+* `5'd1` (**OP_SUB**): Computes the binary difference subtraction (`in0_alu - in1_alu`).
+* `5'd2` (**OP_AND**): Bitwise logical AND evaluation.
+* `5'd3` (**OP_OR**): Bitwise logical OR evaluation.
+* `5'd4` (**OP_XOR**): Bitwise logical Exclusive-OR evaluation.
+* `5'd5` (**OP_SLL**): Shift Left Logical (`in0_alu` shifted by lower 6 bits of `in1_alu`).
+* `5'd6` (**OP_SRL**): Shift Right Logical (`in0_alu` shifted by lower 6 bits of `in1_alu`).
+* `5'd7` (**OP_SRA**): Shift Right Arithmetic (Preserves the signed 64th bit vector during alignment updates).
+* `5'd8` (**OP_SLT**): Set Less Than (Outputs `64'd1` if signed operand A is smaller than signed operand B, otherwise `64'd0`).
+* `5'd9` (**OP_SLTU**): Set Less Than Unsigned (Outputs `64'd1` if raw unsigned A < B, otherwise `64'd0`).
+* `5'd10` (**OP_MUL**): Standard lower-half product multiplication (`in0_alu * in1_alu`).
+* `5'd11` (**OP_MULH**): Extracts the upper 64 bits of a signed-by-signed multiplication product matrix (`[127:64]`).
+* `5'd12` (**OP_MULHSU**): Extracts the upper 64 bits of a signed-by-unsigned mixed multiplication matrix (`[127:64]`).
+* `5'd13` (**OP_MULHU**): Extracts the upper 64 bits of an unsigned-by-unsigned multiplication matrix (`[127:64]`).
+* `5'd14` (**OP_DIV**): Performs signed division. Features automated division-by-zero checks (returns `64'hFFFF_FFFF_FFFF_FFFF`) and overflow protection.
+* `5'd15` (**OP_DIVU**): Performs standard unsigned mathematical division.
+* `5'd16` (**OP_REM**): Computes the signed numeric remainder vector matching division operations.
+* `5'd17` (**OP_REMU**): Computes the unsigned remainder vector matching division operations.
