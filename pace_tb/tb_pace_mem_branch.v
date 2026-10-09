@@ -1,3 +1,19 @@
+// Copyright (c) 2026 uppmpt (https://github.com/uppmpt)
+// Contact: pacesolodev@gmail.com
+//
+// This source describes Open Hardware and is licensed under the
+// CERN-OHL-W v2.
+//
+// You may redistribute and modify this source and make products
+// using it under the terms of the CERN-OHL-W v2
+// (https://ohwr.org/cern_ohl_w_v2.txt).
+//
+// This source is distributed WITHOUT ANY EXPRESS OR IMPLIED
+// WARRANTY, INCLUDING THE IMPLIED WARRANTIES OF MERCHANTABILITY,
+// SATISFACTORY QUALITY AND FITNESS FOR A PARTICULAR PURPOSE.
+// Please see the CERN-OHL-W v2 for applicable conditions.
+//
+// Source location: https://github.com/uppmpt/pace-microarchitecture
 // Branch test for top_pace_mem.
 // Test 1: beq x1,x2 (taken) — next 2 instrs must be skipped.
 // Test 2: bne x5,x6 (not taken) — following instrs must run.

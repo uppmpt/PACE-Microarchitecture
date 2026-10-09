@@ -31,3 +31,14 @@ Thumbs.db
 
 # Temp
 *.tmp
+
+# Test artifacts
+pace_tb/tests/*.deb
+pace_tb/tests/*.tar.gz
+pace_tb/tests/*.elf
+pace_tb/tests/*.bin
+pace_tb/tests/*.o
+pace_tb/tests/*.disass
+pace_tb/program.hex
+pace_tb/workload.hex
+pace_tb/sail_sig.txt

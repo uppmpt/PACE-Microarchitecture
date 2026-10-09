@@ -1,3 +1,19 @@
+// Copyright (c) 2026 uppmpt (https://github.com/uppmpt)
+// Contact: pacesolodev@gmail.com
+//
+// This source describes Open Hardware and is licensed under the
+// CERN-OHL-W v2.
+//
+// You may redistribute and modify this source and make products
+// using it under the terms of the CERN-OHL-W v2
+// (https://ohwr.org/cern_ohl_w_v2.txt).
+//
+// This source is distributed WITHOUT ANY EXPRESS OR IMPLIED
+// WARRANTY, INCLUDING THE IMPLIED WARRANTIES OF MERCHANTABILITY,
+// SATISFACTORY QUALITY AND FITNESS FOR A PARTICULAR PURPOSE.
+// Please see the CERN-OHL-W v2 for applicable conditions.
+//
+// Source location: https://github.com/uppmpt/pace-microarchitecture
 // Load/Store width test: sb/sh/sw/sd + lb/lbu/lh/lhu/lw/lwu/ld
 `timescale 1ns/1ps
 module tb_pace_mem_ldst;
