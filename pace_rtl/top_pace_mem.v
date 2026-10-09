@@ -117,15 +117,35 @@ module top_pace_mem #(parameter HART_ID = 0) (
     wire        l1d_ready;
 
     // MC ready/rdata: mux entre bypass e L1d
+    // ===== Atomic extension bus =====
+    wire        amo_req_in, amo_ack;
+    wire [2:0]  amo_op, amo_funct3;
+    wire [4:0]  amo_funct5;
+    wire [63:0] amo_addr, amo_rs2, amo_result;
+    wire [4:0]  amo_rd;
+    wire        au_mem_req, au_mem_we;
+    wire [63:0] au_mem_addr, au_mem_wdata, au_mem_rdata;
+    wire        au_mem_ready;
+    wire        au_dram_active;
+
     assign mc_ready = mmu_bypass ? dram_ready : l1d_ready;
     assign mc_rdata = mmu_bypass ? dram_rdata[63:0] : l1d_rdata;
 
-    // DRAM port mux: MC-direct tem prioridade
-    assign dram_req   = mc_dram_req | l2_dram_req;
-    assign dram_we    = mc_dram_req ? mc_we : l2_dram_we;
-    assign dram_addr  = mc_dram_req ? mc_addr : l2_dram_addr;
-    assign dram_wdata = mc_dram_req ? {448'b0, mc_wdata} : l2_dram_wdata;
-    assign dram_be    = mc_dram_req ? mc_be : 8'hFF;
+    // Atomic unit owns the DRAM bus only when mc and l2 are idle
+    assign au_dram_active = au_mem_req && !mc_dram_req && !l2_dram_req;
+    assign au_mem_ready   = au_dram_active && dram_ready;
+    assign au_mem_rdata   = dram_rdata[63:0];
+
+    // DRAM port mux: MC-direct tem prioridade, depois AU, depois L2
+    assign dram_req   = au_dram_active | mc_dram_req | l2_dram_req;
+    assign dram_we    = au_dram_active ? au_mem_we :
+                        mc_dram_req    ? mc_we     : l2_dram_we;
+    assign dram_addr  = au_dram_active ? au_mem_addr :
+                        mc_dram_req    ? mc_addr     : l2_dram_addr;
+    assign dram_wdata = au_dram_active ? {448'b0, au_mem_wdata} :
+                        mc_dram_req    ? {448'b0, mc_wdata}     : l2_dram_wdata;
+    assign dram_be    = au_dram_active ? 8'hFF :
+                        mc_dram_req    ? mc_be     : 8'hFF;
     assign l2_dram_rdata = dram_rdata;
 
     // ===== Instâncias =====
@@ -175,6 +195,18 @@ module top_pace_mem #(parameter HART_ID = 0) (
         .redirect_valid(redir_v), .redirect_pc(redir_pc)
     );
 
+    // ===== Atomic extension wrapper =====
+    amo_wrap u_amo_wrap (
+        .clk(clk), .rst_n(rst_n_pcu),
+        .req_in(amo_req_in),
+        .op(amo_op), .funct3(amo_funct3), .funct5(amo_funct5),
+        .addr(amo_addr), .rs2(amo_rs2), .rd(amo_rd),
+        .ack(amo_ack), .result(amo_result),
+        .mem_req(au_mem_req), .mem_we(au_mem_we),
+        .mem_addr(au_mem_addr), .mem_wdata(au_mem_wdata),
+        .mem_rdata(au_mem_rdata), .mem_ready(au_mem_ready)
+    );
+
     m_core u_mc (
         .clk(clk), .rst_n(rst_n_pcu),
         .mq_full(mq_full), .mq_pop_valid(mq_pop_valid), .mq_pop_en(mq_pop_en),
@@ -188,6 +220,11 @@ module top_pace_mem #(parameter HART_ID = 0) (
         .mem_addr(mc_addr), .mem_wdata(mc_wdata),
         .mem_be(mc_be),
         .mem_rdata(mc_rdata), .mem_ready(mc_ready),
+        .amo_ext_req(amo_req_in), .amo_ext_op(amo_op),
+        .amo_ext_funct3(amo_funct3), .amo_ext_funct5(amo_funct5),
+        .amo_ext_addr(amo_addr), .amo_ext_rs2(amo_rs2),
+        .amo_ext_rd(amo_rd),
+        .amo_ext_ack(amo_ack), .amo_ext_result(amo_result),
         .dbg_rs(5'd0), .dbg_rd()
     );
 

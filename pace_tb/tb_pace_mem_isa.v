@@ -93,7 +93,21 @@ module tb_pace_mem_isa;
         mmio_ready = 1;
 
         #30 rst_n = 1;
-        repeat (2000) @(posedge clk);
+        fork
+            begin : debug_trace
+                integer c;
+                for (c = 0; c < 2500; c = c + 1) begin
+                    @(posedge clk);
+                    if (dut.u_pcu.wait_load || dut.mc_ext_wr_en ||
+                        (dut.u_pcu.pc > 64'hc && dut.u_pcu.pc < 64'h30))
+                        $display("[T=%0t] pc=%h wl=%b ext_we=%b ext_addr=%h ext_data=%h shdw_we=%b",
+                                 $time, dut.u_pcu.pc, dut.u_pcu.wait_load,
+                                 dut.mc_ext_wr_en, dut.mc_ext_wr_addr,
+                                 dut.mc_ext_wr_data, dut.u_pcu.shadow_we);
+                end
+            end
+            repeat (2000) @(posedge clk);
+        join
 
         $display("--- register dump ---");
         for (i = 1; i < 32; i = i + 1) begin
