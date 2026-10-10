@@ -890,3 +890,35 @@ The module decodes the 5-bit `opcd_alu` command vector matching these parameters
 * `5'd15` (**OP_DIVU**): Performs standard unsigned mathematical division.
 * `5'd16` (**OP_REM**): Computes the signed numeric remainder vector matching division operations.
 * `5'd17` (**OP_REMU**): Computes the unsigned remainder vector matching division operations.
+
+
+### 2. Multi-Ported Architectural Register File (`register_file_multi`)
+
+The `register_file_multi` module serves as the central architectural state storage file for the superscalar CPU core. It features a parameterized multi-channel write architecture that lets parallel execution units retire operation values simultaneously, alongside asynchronous pipeline read channels and a dedicated, execution-independent debug port.
+
+#### Module Verilog Parameters
+
+* `DATA_WIDTH` (Default: `64`): Bit width configuration defining the data vector payload size (64-bit architecture width).
+* `ADDR_WIDTH` (Default: `5`): Address bus width mapping the 32 discrete internal structural registers (2⁵ = 32).
+* `N_WRITE` (Default: `4`): Total number of parallel write channels allocated to concurrent execution pipelines.
+
+#### Interface Port Definitions
+
+| Signal Name | Direction | Data Type | Bit Width | Description |
+| :--- | :--- | :--- | :--- | :--- |
+| `clk` | **Input** | `wire` | 1-bit | Global core master clock system signal. |
+| `rst_n` | **Input** | `wire` | 1-bit | Active-low asynchronous hardware reset bus clearing all internal registers. |
+| `we` | **Input** | `wire` | `N_WRITE` bits (`[3:0]`) | Bitmask vector enabling individual write ports (one enable bit per port). |
+| `rd` | **Input** | `wire` | Packed vector (`[19:0]`) | Concatenated target destination register addresses (`N_WRITE * ADDR_WIDTH`). |
+| `wd` | **Input** | `wire` | Packed vector (`[255:0]`) | Concatenated write data inputs to commit (`N_WRITE * DATA_WIDTH`). |
+| `rs1` | **Input** | `wire` | 5-bit (`[4:0]`) | Source address selector input for pipeline Read Port 1 (assigned to PCU). |
+| `rs2` | **Input** | `wire` | 5-bit (`[4:0]`) | Source address selector input for pipeline Read Port 2 (assigned to PCU). |
+| `rd1` | **Output** | `wire` | 64-bit (`[63:0]`) | Asynchronous data output bus for pipeline Read Port 1. |
+| `rd2` | **Output** | `wire` | 64-bit (`[63:0]`) | Asynchronous data output bus for pipeline Read Port 2. |
+| `dbg_rs` | **Input** | `wire` | 5-bit (`[4:0]`) | Isolated input address source channel dedicated for system debug tools. |
+| `dbg_rd` | **Output** | `wire` | 64-bit (`[63:0]`) | Isolated asynchronous data output vector assigned to debug utilities. |
+
+#### Internal Execution & Logic Characteristics
+
+* **Zero-Register Hardwiring (`x0`):** The internal read structures employ fixed conditional routing logic. If any read port (`rs1`, `rs2`, or `dbg_rs`) addresses register `5'd0`, the output bus immediately resolves to a hardwired constant zero (`0`) without polling internal registers.
+* **Write Operations Precedence:** Synchronous write commits occur on the rising edge (`posedge`) of `clk`. Parallel data commits use Verilog vector slicing (`+:`) syntax to isolate elements matching `k * ADDR_WIDTH`. Write operations targeting destination address `5'd0` are automatically discarded by the control block logic.
