@@ -922,3 +922,103 @@ The `register_file_multi` module serves as the central architectural state stora
 
 * **Zero-Register Hardwiring (`x0`):** The internal read structures employ fixed conditional routing logic. If any read port (`rs1`, `rs2`, or `dbg_rs`) addresses register `5'd0`, the output bus immediately resolves to a hardwired constant zero (`0`) without polling internal registers.
 * **Write Operations Precedence:** Synchronous write commits occur on the rising edge (`posedge`) of `clk`. Parallel data commits use Verilog vector slicing (`+:`) syntax to isolate elements matching `k * ADDR_WIDTH`. Write operations targeting destination address `5'd0` are automatically discarded by the control block logic.
+
+
+### 3. Pre-computing Unit (`pcu6_v`)
+
+The `pcu6_v` module acts as a specialized superscalar architectural "scout" that pre-computes integer and floating-point arithmetic vectors ahead of the main pipeline execution stages. It handles 6 parallel instruction decoders, branches tracking, a direct memory operations queue for the M-Core, dedicated vector memory ports, and internal CSR exception handling loops.
+
+#### Module Verilog Parameters
+
+* `HART_ID` (Default: `0`): Hardware Thread Identifier assigning the logical core context inside the processor array.
+
+#### Interface Port Definitions
+
+##### Global Control & Instruction Vector Interface
+
+| Signal Name | Direction | Data Type | Bit Width | Description |
+| :--- | :--- | :--- | :--- | :--- |
+| `clk` | **Input** | `wire` | 1-bit | Master system core clock signal. |
+| `rst_n` | **Input** | `wire` | 1-bit | Active-low asynchronous hardware reset bus clearing state machines. |
+| `stall` | **Input** | `wire` | 1-bit | Global execution path stall control flag. |
+| `fetch_stall` | **Input** | `wire` | 1-bit | Pipeline fetch stage target stall flag. |
+| `shdw_wr_ready` | **Input** | `wire` | 4-bit | Availability bitmask status vector from the Shadow Register File. |
+| `instr_count` | **Input** | `wire` | 4-bit | Identifies the number of active valid parallel lanes (Range: 1 to 6). |
+| `instr_in` | **Input** | `wire` | Packed (`[191:0]`) | Concatenated parallel input instruction packet stream (`6 * 32 bits`). |
+| `pc_out` | **Output** | `wire` | 64-bit | Primary resolved program counter output tracking core progression. |
+
+##### Shadow Register File Retirement Interface
+
+| Signal Name | Direction | Data Type | Bit Width | Description |
+| :--- | :--- | :--- | :--- | :--- |
+| `shadow_we` | **Output** | `wire` | 6-bit | Parallel write-enable select bitmask for the 6 execution lanes. |
+| `shadow_rd` | **Output** | `wire` | Packed (`[29:0]`) | Concatenated destination architectural register targets (`6 lanes * 5 bits`). |
+| `shadow_data` | **Output** | `wire` | Packed (`[383:0]`) | Concatenated payload write data generated per lane (`6 lanes * 64 bits`). |
+| `num_writes` | **Output** | `wire` | 6-bit | Active output channel configuration matrix mapping writes metrics. |
+| `rh_discard` | **Input** | `wire` | 1-bit | Runahead state discard control (suppresses commits to shadow storage). |
+
+##### Branch Predication & Redirection Interface
+
+| Signal Name | Direction | Data Type | Bit Width | Description |
+| :--- | :--- | :--- | :--- | :--- |
+| `br_valid` | **Output** | `wire` | 1-bit | Core branch validation update status. |
+| `br_taken` | **Output** | `wire` | 1-bit | Evaluation flag showing branch condition resolution is true. |
+| `br_target` | **Output** | `wire` | 64-bit | Target calculated PC destination vector for taken branches. |
+| `redirect_valid` | **Input** | `wire` | 1-bit | Pipeline pipeline redirect signal (e.g. tracking mispredictions). |
+| `redirect_pc` | **Input** | `wire` | 64-bit | Correction address payload target vector for pipeline re-steering. |
+
+##### External Commits & Core Interrupts
+
+| Signal Name | Direction | Data Type | Bit Width | Description |
+| :--- | :--- | :--- | :--- | :--- |
+| `ext_wr_en` | **Input** | `wire` | 1-bit | External register overwrite tracking validation strobe. |
+| `ext_wr_addr` | **Input** | `wire` | 5-bit | Target architectural register code for external update bounds. |
+| `ext_wr_data` | **Input** | `wire` | 64-bit | Payload data value vector injected during external writes. |
+| `i_mtip`, `i_msip`, `i_meip` | **Input** | `wire` | 1-bit each | Machine-level interrupt input flags (Timer, Software, External). |
+| `i_seip`, `i_stip`, `i_ssip` | **Input** | `wire` | 1-bit each | Supervisor-level interrupt input flags (External, Timer, Software). |
+
+##### Memory Transaction Queue Interface (M-Core Interconnect)
+
+| Signal Name | Direction | Data Type | Bit Width | Description |
+| :--- | :--- | :--- | :--- | :--- |
+| `mq_push_en` | **Output** | `reg` | 1-bit | Queue push enable control line signaling transaction submission. |
+| `mq_push_op` | **Output** | `reg` | 3-bit | Memory queue operation code parameter classification flags. |
+| `mq_push_addr` | **Output** | `reg` | 64-bit | Resolved mathematical target address tracking memory bounds. |
+| `mq_push_rs2` | **Output** | `reg` | 64-bit | Payload data buffer source containing tracking parameters to store. |
+| `mq_push_rd` | **Output** | `reg` | 5-bit | Target destination register tracker mapping memory load returns. |
+| `mq_push_funct3` | **Output** | `reg` | 3-bit | Width classification parameters (Byte, Halfword, Word, Doubleword). |
+| `mq_push_amo_f5` | **Output** | `reg` | 5-bit | Atomic Memory Operation functional execution routing indicators. |
+| `mq_full` | **Input** | `wire` | 1-bit | Pipeline feedback line blocking pushes when memory queue is saturated. |
+
+##### Vector Memory Interconnect
+
+| Signal Name | Direction | Data Type | Bit Width | Description |
+| :--- | :--- | :--- | :--- | :--- |
+| `vmem_req` | **Output** | `reg` | 1-bit | Vector processing memory access request trigger. |
+| `vmem_we` | **Output** | `reg` | 1-bit | Write-enable parameter assertion line (High: Store, Low: Load). |
+| `vmem_addr` | **Output** | `reg` | 64-bit | Calculated target address vector assigned for vector structures. |
+| `vmem_wdata` | **Output** | `reg` | 64-bit | Outbound storage payload vector assigned for vector writes (`vse.v`). |
+| `vmem_rdata` | **Input** | `wire` | 64-bit | Inbound read response payload data returned from system (`vle.v`). |
+| `vmem_ready` | **Input** | `wire` | 1-bit | Handshake completion status strobe from memory infrastructure. |
+
+##### Debug Subsystem Vectors
+
+| Signal Name | Direction | Data Type | Bit Width | Description |
+| :--- | :--- | :--- | :--- | :--- |
+| `dbg_priv` | **Output** | `wire` | 2-bit | Current core privilege execution tracking level (User, Supervisor, Machine). |
+| `dbg_satp` | **Output** | `wire` | 64-bit | Supervisor Address Translation and Protection tracking register out. |
+| `dbg_satp_enable`| **Output** | `wire` | 1-bit | Memory management unit paging translation configuration visibility flag. |
+| `dbg_flush_tlb` | **Output** | `wire` | 1-bit | Direct strobe tracking Translation Lookaside Buffer clearance events. |
+| `dbg_trap_taken` | **Output** | `wire` | 1-bit | Asserted when an exception traps into core vectored routing points. |
+| `dbg_advance` | **Output** | `wire` | 3-bit | Pipeline analysis increment trackers. |
+| `dbg_flush_fetch` | **Output** | `wire` | 1-bit | High-level status line indicating context clear cycles. |
+| `dbg_new_pc` | **Output** | `wire` | 64-bit | Target update pointer address during trap or branch vector jumps. |
+| `dbg_vl` | **Output** | `wire` | 8-bit | Active vector length constraint variable readout parameter. |
+| `dbg_vtype` | **Output** | `wire` | 64-bit | Active vector configuration state matrix registry readout data. |
+| `dbg_vrs` | **Input** | `wire` | 5-bit | Target debugger select line probing internal vector files. |
+| `dbg_vrd` | **Output** | `wire` | 128-bit | Full 128-bit vector payload retrieved by debugger probes. |
+
+#### Architectural Circuit Verification Notes
+* **Superscalar Decoders Cluster:** Uses a parallel compile generate-loop (`g_dec`) instantiating six structural execution decoders tracking `instr_in[gi*32 +: 32]` simultaneously. 
+* **State Operations Precedence:** Synchronous register updates use an internal dual-port file mapping block (`pcu_regs`). Arithmetic results are processed out by a dedicated six-way `alu_cluster` processing logic system block. 
+* **Known FSM Implementation Constraint:** As flagged by verification testbed analysis, developers reviewing code blocks must map the internal Finite State Machine (FSM) configurations **exactly as written in the load-writeback tracking paths** to accurately debug state sequencing errors present in current hardware revisions.
